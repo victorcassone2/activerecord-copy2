@@ -412,7 +412,6 @@ module ActiveRecordCopy
       weight = digits_before_decpoint.size - 1
       digits = digits_before_decpoint + digits_after_decpoint
 
-      puts "#{digits}".new_line.red
       pack_and_write(io, [2 * 4 + 2 * digits.size], PACKED_UINT_32)
       pack_and_write(io, [digits.size], PACKED_UINT_16)
       pack_and_write(io, [weight], PACKED_UINT_16)
