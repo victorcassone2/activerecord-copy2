@@ -133,6 +133,8 @@ module ActiveRecordCopy
         pack_and_write_with_bufsize(io, [field.to_i], PACKED_UINT_32)
       when :smallint
         pack_and_write_with_bufsize(io, [field.to_i], PACKED_UINT_16)
+      when :decimal
+        encode_decimal(io, field)
       when :numeric
         encode_numeric(io, field)
       when :real
@@ -164,7 +166,7 @@ module ActiveRecordCopy
       end
 
       case @column_types[index]
-      when :bigint, :integer, :smallint, :numeric, :float, :real
+      when :bigint, :integer, :smallint, :numeric, :float, :real, :decimal
         write_simple_field(io, field, @column_types[index])
       when :uuid
         pack_and_write_with_bufsize(io, [field.delete('-')], PACKED_HEX_STRING)
@@ -392,6 +394,41 @@ module ActiveRecordCopy
       pack_and_write(io, [dscale], PACKED_UINT_16) # dscale
 
       digits.each { |d| pack_and_write(io, [d], PACKED_UINT_16) } # NumericDigits
+    end
+
+    def encode_decimal(io, field)
+      float_str = field.to_s
+      digits_base10 = float_str.scan(/\d/).map(&:to_i)
+      weight_base10 = float_str.index('.')
+      sign          = field < 0.0 ? 0x4000 : 0
+      dscale        = digits_base10.size - weight_base10
+
+      int_part, frac_part = float_str.split('.')
+      frac_part += '0' * (NUMERIC_DEC_DIGITS - frac_part.size % NUMERIC_DEC_DIGITS)
+
+      digits_before_decpoint = decimal_base10_to_base10000(int_part.to_i)
+      digits_after_decpoint = decimal_base10_to_base10000(frac_part.to_i).reverse
+
+      weight = digits_before_decpoint.size - 1
+      digits = digits_before_decpoint + digits_after_decpoint
+
+      puts "#{digits}".new_line.red
+      pack_and_write(io, [2 * 4 + 2 * digits.size], PACKED_UINT_32)
+      pack_and_write(io, [digits.size], PACKED_UINT_16)
+      pack_and_write(io, [weight], PACKED_UINT_16)
+      pack_and_write(io, [sign], PACKED_UINT_16)
+      pack_and_write(io, [dscale], PACKED_UINT_16)
+
+      digits.each { |d| pack_and_write(io, [d], PACKED_UINT_16) }
+    end
+
+    def decimal_base10_to_base10000(intval)
+      digits = []
+      while intval != 0
+        digits.unshift(intval % 10000)
+        intval /= 10000
+      end
+      digits.empty? ? [0] : digits
     end
   end
 end
