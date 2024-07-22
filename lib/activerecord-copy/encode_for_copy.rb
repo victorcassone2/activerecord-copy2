@@ -397,17 +397,17 @@ module ActiveRecordCopy
     end
 
     def encode_decimal(io, field)
-      float_str = field.to_s
-      digits_base10 = float_str.scan(/\d/).map(&:to_i)
-      weight_base10 = float_str.index('.')
-      sign          = field < 0.0 ? 0x4000 : 0
-      dscale        = digits_base10.size - weight_base10
+      float_str = field.abs.to_s
+      sign = field < 0.0 ? 0x4000 : 0
 
       int_part, frac_part = float_str.split('.')
+      frac_part ||= '0'
       frac_part += '0' * (NUMERIC_DEC_DIGITS - frac_part.size % NUMERIC_DEC_DIGITS)
 
       digits_before_decpoint = decimal_base10_to_base10000(int_part.to_i)
       digits_after_decpoint = decimal_base10_to_base10000(frac_part.to_i).reverse
+
+      dscale = frac_part.size
 
       weight = digits_before_decpoint.size - 1
       digits = digits_before_decpoint + digits_after_decpoint
